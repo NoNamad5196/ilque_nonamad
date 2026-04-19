@@ -1,0 +1,363 @@
+"use client";
+
+import Link from "next/link";
+import { useState, useTransition } from "react";
+
+import { readApiMessage } from "@/lib/api-response";
+import { type DashboardSnapshot, type Quest } from "@/lib/types";
+import { cn, formatClock, getXpIntoCurrentLevel } from "@/lib/utils";
+
+type Notice = {
+  type: "success" | "error" | "info";
+  text: string;
+};
+
+const categoryLabel = {
+  sql: "SQL",
+  coding: "Coding",
+  study: "Study",
+  review: "Review"
+} as const;
+
+export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const [quests, setQuests] = useState(snapshot.quests);
+  const [stats, setStats] = useState(snapshot.stats);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [isSyncing, startSync] = useTransition();
+
+  async function handleSync() {
+    startSync(async () => {
+      try {
+        const response = await fetch("/api/quests/generate", {
+          method: "POST"
+        });
+
+        if (!response.ok) {
+          const message = await readApiMessage(response, "오늘의 퀘스트를 다시 불러오지 못했습니다.");
+          setNotice({
+            type: "error",
+            text: message
+          });
+          return;
+        }
+
+        const payload = (await response.json()) as { quests: Quest[] };
+        setQuests(payload.quests);
+        setNotice({
+          type: "success",
+          text: "캘린더 기준으로 오늘의 퀘스트를 다시 불러왔어요."
+        });
+      } catch {
+        setNotice({
+          type: "error",
+          text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+        });
+      }
+    });
+  }
+
+  async function handleComplete(target: Quest) {
+    if (target.completed) {
+      return;
+    }
+
+    const previousQuests = quests;
+    const previousStats = stats;
+    const today = new Date().toISOString().slice(0, 10);
+    const nextXp = stats.xp + target.xp;
+
+    setQuests((current) =>
+      current.map((quest) => (quest.id === target.id ? { ...quest, completed: true } : quest))
+    );
+    setStats({
+      ...stats,
+      xp: nextXp,
+      level: Math.floor(nextXp / 100) + 1,
+      streak: stats.lastCompletedDate === today ? stats.streak : stats.streak + 1,
+      lastCompletedDate: today
+    });
+    setNotice({
+      type: "success",
+      text: `"${target.title}" 완료! XP +${target.xp}`
+    });
+
+    try {
+      const response = await fetch("/api/quests/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(target)
+      });
+
+      if (!response.ok) {
+        const message = await readApiMessage(response, "퀘스트 완료 처리에 실패했습니다.");
+        setQuests(previousQuests);
+        setStats(previousStats);
+        setNotice({
+          type: "error",
+          text: message
+        });
+        return;
+      }
+
+      const payload = (await response.json()) as { stats?: DashboardSnapshot["stats"] };
+
+      if (payload.stats) {
+        setStats(payload.stats);
+      }
+    } catch {
+      setQuests(previousQuests);
+      setStats(previousStats);
+      setNotice({
+        type: "error",
+        text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+      });
+    }
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <section className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="glass rounded-[1.75rem] p-5">
+            <p className="text-sm text-slate-500">연속 스트릭</p>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="section-title text-4xl font-black text-ocean">{stats.streak}</span>
+              <span className="pb-1 text-sm text-slate-500">days</span>
+            </div>
+          </div>
+          <div className="glass rounded-[1.75rem] p-5">
+            <p className="text-sm text-slate-500">누적 XP</p>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="section-title text-4xl font-black text-ocean">{stats.xp}</span>
+              <span className="pb-1 text-sm text-slate-500">xp</span>
+            </div>
+          </div>
+          <div className="glass rounded-[1.75rem] p-5">
+            <p className="text-sm text-slate-500">현재 레벨</p>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="section-title text-4xl font-black text-ocean">Lv.{stats.level}</span>
+            </div>
+            <div className="mt-4 h-2 rounded-full bg-ocean/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-coral to-apricot"
+                style={{ width: `${getXpIntoCurrentLevel(stats.xp)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">이번 주 진행도</p>
+              <h2 className="section-title mt-1 text-2xl font-black text-ocean">주간 스트릭 보드</h2>
+            </div>
+            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-500">
+              {snapshot.weekProgress.filter((item) => item.completed).length}/7 완료
+            </span>
+          </div>
+          <div className="mt-5 grid grid-cols-7 gap-2">
+            {snapshot.weekProgress.map((day) => (
+              <div
+                key={day.date}
+                className={cn(
+                  "rounded-[1.4rem] border px-3 py-4 text-center",
+                  day.completed
+                    ? "border-transparent bg-gradient-to-br from-coral to-apricot text-white"
+                    : "border-ocean/10 bg-white/70 text-slate-500",
+                  day.isToday && "ring-2 ring-ocean/20"
+                )}
+              >
+                <p className="text-xs">{day.label}</p>
+                <p className="mt-2 text-lg font-bold">{day.completed ? "●" : "○"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm text-slate-500">오늘의 퀘스트</p>
+              <h2 className="section-title mt-1 text-2xl font-black text-ocean">캘린더에서 변환된 할 일</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="rounded-full bg-ocean px-4 py-2 text-sm font-semibold text-white transition hover:bg-ocean/90 disabled:opacity-60"
+              >
+                {isSyncing ? "동기화 중..." : "캘린더 동기화"}
+              </button>
+              <Link
+                href="/onboarding"
+                className="rounded-full border border-ocean/10 bg-white px-4 py-2 text-sm font-semibold text-ocean transition hover:bg-white/80"
+              >
+                퀘스트 직접 추가
+              </Link>
+            </div>
+          </div>
+
+          {snapshot.onboardingState === "needs_setup" ? (
+            <div className="mt-5 rounded-[1.5rem] border border-dashed border-ocean/20 bg-white/60 p-5">
+              <p className="font-semibold text-ocean">캘린더가 비어 있어 온보딩이 필요해요.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                공부 목표와 시작 시간을 먼저 잡고, 캘린더 등록 또는 수동 퀘스트 생성으로 대시보드를 채울 수 있습니다.
+              </p>
+              <Link
+                href="/onboarding"
+                className="mt-4 inline-flex rounded-full bg-coral px-4 py-2 text-sm font-semibold text-white"
+              >
+                온보딩 시작하기
+              </Link>
+            </div>
+          ) : null}
+
+          {snapshot.onboardingState === "manual_only" ? (
+            <div className="mt-5 rounded-[1.5rem] border border-ocean/10 bg-white/60 p-5 text-sm leading-6 text-slate-600">
+              오늘 일정은 비어 있지만 이번 주 미션은 있어요. 수동 퀘스트를 더하면 오늘 화면을 풍성하게 채울 수 있습니다.
+            </div>
+          ) : null}
+
+          <div className="mt-5 space-y-3">
+            {quests.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-dashed border-ocean/20 bg-white/60 p-5 text-sm text-slate-500">
+                아직 생성된 퀘스트가 없습니다. 캘린더를 동기화하거나 수동으로 퀘스트를 추가해보세요.
+              </div>
+            ) : null}
+
+            {quests.map((quest) => (
+              <button
+                key={quest.id}
+                type="button"
+                onClick={() => handleComplete(quest)}
+                className={cn(
+                  "w-full rounded-[1.6rem] border p-5 text-left transition",
+                  quest.completed
+                    ? "border-transparent bg-gradient-to-r from-sage to-cream"
+                    : "border-ocean/10 bg-white hover:-translate-y-0.5 hover:shadow-lg"
+                )}
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-ocean/5 px-3 py-1 text-xs font-semibold text-ocean">
+                        {categoryLabel[quest.category]}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {formatClock(quest.startTime)} - {formatClock(quest.endTime)}
+                      </span>
+                    </div>
+                    <h3 className="mt-3 text-lg font-bold text-slate-900">{quest.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{quest.description}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">
+                      +{quest.xp} XP
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded-full px-3 py-2 text-sm font-semibold",
+                        quest.completed ? "bg-green-600 text-white" : "bg-slate-100 text-slate-500"
+                      )}
+                    >
+                      {quest.completed ? "완료" : "탭해서 완료"}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <aside className="space-y-6">
+        <div className="glass rounded-[2rem] p-6">
+          <p className="text-sm text-slate-500">이번 주 미션</p>
+          <h2 className="section-title mt-1 text-2xl font-black text-ocean">
+            {snapshot.weeklyMission?.title ?? "주간 미션을 준비 중이에요"}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {snapshot.weeklyMission?.description ??
+              "주간 미션 이벤트를 캘린더 설명란에 적어두면 오늘 퀘스트로 자동 추출할 수 있습니다."}
+          </p>
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <p className="text-sm text-slate-500">현재 연결 상태</p>
+          <div className="mt-4 grid gap-3">
+            <StatusRow
+              label="Google OAuth"
+              value={snapshot.config.authConfigured ? "준비됨" : "미설정"}
+              active={snapshot.config.authConfigured}
+            />
+            <StatusRow
+              label="Supabase"
+              value={snapshot.config.supabaseConfigured ? "준비됨" : "미설정"}
+              active={snapshot.config.supabaseConfigured}
+            />
+            <StatusRow
+              label="Google AI"
+              value={snapshot.config.aiConfigured ? "준비됨" : "로컬 플랜 사용"}
+              active={snapshot.config.aiConfigured}
+            />
+            <StatusRow
+              label="Calendar 연결"
+              value={snapshot.config.calendarConnected ? "읽기 가능" : "연결 대기"}
+              active={snapshot.config.calendarConnected}
+            />
+          </div>
+        </div>
+
+        <div className="glass rounded-[2rem] p-6">
+          <p className="text-sm text-slate-500">오늘의 운영 메모</p>
+          <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+            <li>캘린더 이벤트가 있으면 그 일정이 오늘의 퀘스트 우선순위가 됩니다.</li>
+            <li>오늘 일정이 없으면 주간 미션 설명에서 오늘치 작업을 추출합니다.</li>
+            <li>둘 다 없으면 온보딩과 수동 퀘스트 입력 흐름으로 이어집니다.</li>
+          </ul>
+        </div>
+      </aside>
+
+      {notice ? (
+        <div
+          className={cn(
+            "fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-full px-5 py-3 text-sm font-semibold shadow-lg",
+            notice.type === "success" && "bg-ocean text-white",
+            notice.type === "error" && "bg-red-50 text-red-700",
+            notice.type === "info" && "bg-slate-900 text-white"
+          )}
+        >
+          {notice.text}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusRow({
+  label,
+  value,
+  active
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-[1.25rem] bg-white/80 px-4 py-3">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span
+        className={cn(
+          "rounded-full px-3 py-1 text-xs font-semibold",
+          active ? "bg-sage text-green-800" : "bg-slate-100 text-slate-500"
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}

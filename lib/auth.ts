@@ -41,10 +41,26 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, account }) {
       if (account?.access_token) {
         token.accessToken = account.access_token;
+        token.accessTokenExpires = account.expires_at
+          ? account.expires_at * 1000
+          : Date.now() + 60 * 60 * 1000;
+        token.refreshToken = account.refresh_token ?? token.refreshToken;
       }
 
       if (token.sub) {
         token.userId = token.sub;
+      }
+
+      if (
+        token.accessToken &&
+        token.accessTokenExpires &&
+        Date.now() < token.accessTokenExpires - 60 * 1000
+      ) {
+        return token;
+      }
+
+      if (token.refreshToken) {
+        return refreshGoogleAccessToken(token);
       }
 
       return token;
@@ -53,6 +69,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.accessToken = token.accessToken;
+        session.error = token.error;
       }
 
       return session;
@@ -63,6 +80,51 @@ export const authOptions: NextAuthOptions = {
     }
   }
 };
+
+async function refreshGoogleAccessToken(token: {
+  accessToken?: string;
+  accessTokenExpires?: number;
+  refreshToken?: string;
+  error?: "RefreshAccessTokenError";
+}) {
+  try {
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        client_id: env.googleClientId,
+        client_secret: env.googleClientSecret,
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken ?? ""
+      })
+    });
+
+    const refreshedToken = (await response.json()) as {
+      access_token?: string;
+      expires_in?: number;
+      refresh_token?: string;
+    };
+
+    if (!response.ok || !refreshedToken.access_token) {
+      throw new Error("Google token refresh failed.");
+    }
+
+    return {
+      ...token,
+      accessToken: refreshedToken.access_token,
+      accessTokenExpires: Date.now() + (refreshedToken.expires_in ?? 3600) * 1000,
+      refreshToken: refreshedToken.refresh_token ?? token.refreshToken,
+      error: undefined
+    };
+  } catch {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError" as const
+    };
+  }
+}
 
 async function upsertUserProfile(user: User) {
   const supabase = createServiceSupabaseClient();

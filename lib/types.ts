@@ -1,6 +1,6 @@
 export type QuestCategory = "sql" | "coding" | "study" | "review";
 
-export type QuestSource = "calendar" | "weekly-mission" | "manual";
+export type QuestSource = "calendar" | "weekly-mission" | "manual" | "notion-source";
 
 export interface Viewer {
   id: string;
@@ -34,6 +34,23 @@ export interface Quest {
   xp: number;
   completed: boolean;
   source: QuestSource;
+}
+
+export interface LearningSource {
+  id: string;
+  title: string;
+  summary: string;
+  url?: string;
+  category?: string;
+  status?: string;
+}
+
+export interface WebSourceResult {
+  id: string;
+  title: string;
+  url: string;
+  summary: string;
+  category: QuestCategory;
 }
 
 export interface UserStats {
@@ -84,6 +101,19 @@ export interface GoalPlan {
   summary: string;
   advice: string;
   weeks: GoalPlanWeek[];
+}
+
+export interface SavedGoal {
+  id: string;
+  title: string;
+  category: string;
+  startDate: string;
+  endDate: string;
+  durationDays: number;
+  dailyHours: number;
+  level: string;
+  plan: GoalPlan;
+  createdAt: string;
 }
 
 export interface DashboardSnapshot {

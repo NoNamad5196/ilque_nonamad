@@ -1,6 +1,6 @@
 import { errorResponse, zodErrorResponse } from "@/lib/api-response";
 import { generateGoalPlan } from "@/lib/app-data";
-import { goalInputSchema } from "@/lib/validators";
+import { goalPlanSaveSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -9,14 +9,14 @@ export async function POST(request: Request) {
     return errorResponse("요청 형식이 올바르지 않습니다.", 400);
   }
 
-  const parsed = goalInputSchema.safeParse(body);
+  const parsed = goalPlanSaveSchema.safeParse(body);
 
   if (!parsed.success) {
     return zodErrorResponse("입력값을 다시 확인해주세요.", parsed.error);
   }
 
   try {
-    const plan = await generateGoalPlan(
+    const result = await generateGoalPlan(
       {
         title: parsed.data.title,
         category: parsed.data.category,
@@ -25,12 +25,14 @@ export async function POST(request: Request) {
         dailyHours: parsed.data.dailyHours,
         currentLevel: parsed.data.currentLevel
       },
-      parsed.data.persist
+      parsed.data.persist,
+      parsed.data.plan
     );
 
     return Response.json({
-      plan,
-      saved: parsed.data.persist
+      plan: result.plan,
+      saved: Boolean(result.savedGoal),
+      savedGoal: result.savedGoal
     });
   } catch {
     return errorResponse("플랜을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.", 500);

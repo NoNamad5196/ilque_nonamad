@@ -1,4 +1,5 @@
 import { type CalendarEvent, type Quest, type UserStats, type WeeklyMission } from "@/lib/types";
+import { isWeeklyMissionEvent } from "@/lib/calendar";
 import { QUEST_XP, getLevelFromXp, guessCategoryFromText, stableId, toIsoDate } from "@/lib/utils";
 
 export function createDailyQuests(input: {
@@ -32,6 +33,7 @@ export function createDailyQuests(input: {
       .split(/\r?\n|,|·/)
       .map((line) => line.replace(/^[-*]\s*/, "").trim())
       .filter(Boolean)
+      .filter((task) => !isWeeklyMissionEvent({ summary: task }))
       .slice(0, 3);
 
     return tasks.map((task, index) => {

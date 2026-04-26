@@ -40,6 +40,19 @@ create table if not exists public.weekly_progress (
   completed boolean not null default false
 );
 
+create table if not exists public.manual_quests (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references public.users(id) on delete cascade,
+  title text not null,
+  description text not null default '직접 입력한 퀘스트입니다.',
+  category text not null check (category in ('sql', 'coding', 'study', 'review')),
+  start_time timestamptz not null default timezone('utc', now()),
+  end_time timestamptz not null default timezone('utc', now() + interval '1 hour'),
+  xp integer not null default 10,
+  completed boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
 create table if not exists public.user_goals (
   id uuid primary key default gen_random_uuid(),
   user_id text not null references public.users(id) on delete cascade,
@@ -60,12 +73,16 @@ create index if not exists idx_quest_completions_user_completed_at
 create index if not exists idx_weekly_progress_user_week_date
   on public.weekly_progress(user_id, week_date);
 
+create index if not exists idx_manual_quests_user_created_at
+  on public.manual_quests(user_id, created_at desc);
+
 create index if not exists idx_user_goals_user_active
   on public.user_goals(user_id, is_active);
 
 alter table public.users enable row level security;
 alter table public.quest_completions enable row level security;
 alter table public.weekly_progress enable row level security;
+alter table public.manual_quests enable row level security;
 alter table public.user_goals enable row level security;
 
 drop policy if exists "users_select_own" on public.users;
@@ -134,6 +151,31 @@ create policy "weekly_update_own"
 drop policy if exists "weekly_delete_own" on public.weekly_progress;
 create policy "weekly_delete_own"
   on public.weekly_progress
+  for delete
+  using (public.requesting_user_id() = user_id);
+
+drop policy if exists "manual_quests_select_own" on public.manual_quests;
+create policy "manual_quests_select_own"
+  on public.manual_quests
+  for select
+  using (public.requesting_user_id() = user_id);
+
+drop policy if exists "manual_quests_insert_own" on public.manual_quests;
+create policy "manual_quests_insert_own"
+  on public.manual_quests
+  for insert
+  with check (public.requesting_user_id() = user_id);
+
+drop policy if exists "manual_quests_update_own" on public.manual_quests;
+create policy "manual_quests_update_own"
+  on public.manual_quests
+  for update
+  using (public.requesting_user_id() = user_id)
+  with check (public.requesting_user_id() = user_id);
+
+drop policy if exists "manual_quests_delete_own" on public.manual_quests;
+create policy "manual_quests_delete_own"
+  on public.manual_quests
   for delete
   using (public.requesting_user_id() = user_id);
 

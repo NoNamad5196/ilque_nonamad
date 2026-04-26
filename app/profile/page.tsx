@@ -12,7 +12,7 @@ export default async function ProfilePage() {
       currentTab="profile"
       viewer={viewer}
       title="프로필과 연결 설정"
-      subtitle="현재 학습 상태와 연결 구성을 확인하고, 어떤 환경으로 앱이 동작 중인지 빠르게 파악할 수 있습니다."
+      subtitle="현재 학습 상태와 연결 구성을 확인하고, 앱이 어떤 서비스와 이어져 있는지 빠르게 파악할 수 있습니다."
     >
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="glass rounded-[2rem] p-6">
@@ -40,6 +40,7 @@ export default async function ProfilePage() {
             <ChecklistRow title="Google OAuth" body="로그인과 Calendar 읽기 권한" ready={has.auth} />
             <ChecklistRow title="Supabase" body="사용자 프로필, 완료 이력, 목표 플랜 저장" ready={has.supabase} />
             <ChecklistRow title="Google AI" body="퀘스트 변환과 목표 플랜 생성 응답" ready={has.ai} />
+            <ChecklistRow title="Notion" body="개인 ILQue 데이터베이스 기록 연동" ready={has.notion} />
           </div>
         </section>
       </div>

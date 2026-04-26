@@ -6,9 +6,12 @@ export const env = {
   nextAuthSecret: readEnv("NEXTAUTH_SECRET"),
   nextAuthUrl: readEnv("NEXTAUTH_URL"),
   googleAiApiKey: readEnv("GOOGLE_AI_API_KEY"),
+  googleAiModel: readEnv("GOOGLE_AI_MODEL") || "gemini-2.5-flash-lite",
   nextPublicSupabaseUrl: readEnv("NEXT_PUBLIC_SUPABASE_URL"),
   nextPublicSupabaseAnonKey: readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
-  supabaseServiceRoleKey: readEnv("SUPABASE_SERVICE_ROLE_KEY")
+  supabaseServiceRoleKey: readEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  notionToken: readEnv("NOTION_TOKEN"),
+  notionDatabaseId: readEnv("NOTION_DATABASE_ID")
 };
 
 export const has = {
@@ -22,5 +25,6 @@ export const has = {
   serviceSupabase:
     Boolean(env.nextPublicSupabaseUrl) &&
     Boolean(env.supabaseServiceRoleKey),
-  ai: Boolean(env.googleAiApiKey)
+  ai: Boolean(env.googleAiApiKey),
+  notion: Boolean(env.notionToken) && Boolean(env.notionDatabaseId)
 };

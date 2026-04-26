@@ -12,6 +12,12 @@ type Notice = {
   text: string;
 };
 
+type UndoState = {
+  completionId: string;
+  notionPageId?: string;
+  quest: Quest;
+};
+
 const categoryLabel = {
   sql: "SQL",
   coding: "Coding",
@@ -19,14 +25,24 @@ const categoryLabel = {
   review: "Review"
 } as const;
 
+const sourceLabel = {
+  calendar: "오늘 일정",
+  "weekly-mission": "주간 미션 하위",
+  manual: "직접 추가",
+  "notion-source": "Notion 자료"
+} as const;
+
 export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [quests, setQuests] = useState(snapshot.quests);
   const [stats, setStats] = useState(snapshot.stats);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [isSyncing, startSync] = useTransition();
 
   async function handleSync() {
     startSync(async () => {
+      setUndoState(null);
+
       try {
         const response = await fetch("/api/quests/generate", {
           method: "POST"
@@ -66,6 +82,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
     const today = new Date().toISOString().slice(0, 10);
     const nextXp = stats.xp + target.xp;
 
+    setUndoState(null);
     setQuests((current) =>
       current.map((quest) => (quest.id === target.id ? { ...quest, completed: true } : quest))
     );
@@ -77,8 +94,8 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
       lastCompletedDate: today
     });
     setNotice({
-      type: "success",
-      text: `"${target.title}" 완료! XP +${target.xp}`
+      type: "info",
+      text: `"${target.title}" 완료 처리 중입니다.`
     });
 
     try {
@@ -94,6 +111,83 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
         const message = await readApiMessage(response, "퀘스트 완료 처리에 실패했습니다.");
         setQuests(previousQuests);
         setStats(previousStats);
+        setUndoState(null);
+        setNotice({
+          type: "error",
+          text: message
+        });
+        return;
+      }
+
+      const payload = (await response.json()) as {
+        stats?: DashboardSnapshot["stats"];
+        completionId?: string;
+        notionPageId?: string;
+      };
+
+      if (payload.stats) {
+        setStats(payload.stats);
+      }
+
+      if (payload.completionId) {
+        setUndoState({
+          completionId: payload.completionId,
+          notionPageId: payload.notionPageId,
+          quest: target
+        });
+      }
+
+      setNotice({
+        type: "success",
+        text: `"${target.title}" 완료! XP +${target.xp}`
+      });
+    } catch {
+      setQuests(previousQuests);
+      setStats(previousStats);
+      setUndoState(null);
+      setNotice({
+        type: "error",
+        text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+      });
+    }
+  }
+
+  async function handleUndoComplete() {
+    if (!undoState) {
+      return;
+    }
+
+    const target = undoState.quest;
+    const previousQuests = quests;
+    const previousStats = stats;
+    const previousUndoState = undoState;
+
+    setUndoState(null);
+    setQuests((current) =>
+      current.map((quest) => (quest.id === target.id ? { ...quest, completed: false } : quest))
+    );
+    setNotice({
+      type: "info",
+      text: "완료를 되돌리는 중입니다."
+    });
+
+    try {
+      const response = await fetch("/api/quests/undo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          completionId: previousUndoState.completionId,
+          notionPageId: previousUndoState.notionPageId,
+          quest: target
+        })
+      });
+
+      if (!response.ok) {
+        const message = await readApiMessage(response, "완료 취소에 실패했습니다.");
+        setQuests(previousQuests);
+        setStats(previousStats);
         setNotice({
           type: "error",
           text: message
@@ -106,9 +200,56 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
       if (payload.stats) {
         setStats(payload.stats);
       }
+
+      setNotice({
+        type: "success",
+        text: `"${target.title}" 완료를 취소했습니다.`
+      });
     } catch {
       setQuests(previousQuests);
       setStats(previousStats);
+      setNotice({
+        type: "error",
+        text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+      });
+    }
+  }
+
+  async function handleDeleteManualQuest(target: Quest) {
+    if (target.source !== "manual") {
+      return;
+    }
+
+    const previousQuests = quests;
+
+    setUndoState(null);
+    setQuests((current) => current.filter((quest) => quest.id !== target.id));
+    setNotice({
+      type: "info",
+      text: `"${target.title}" 삭제 중입니다.`
+    });
+
+    try {
+      const response = await fetch(`/api/quests/manual/${target.id}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        const message = await readApiMessage(response, "퀘스트 삭제에 실패했습니다.");
+        setQuests(previousQuests);
+        setNotice({
+          type: "error",
+          text: message
+        });
+        return;
+      }
+
+      setNotice({
+        type: "success",
+        text: `"${target.title}" 퀘스트를 삭제했습니다.`
+      });
+    } catch {
+      setQuests(previousQuests);
       setNotice({
         type: "error",
         text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
@@ -181,7 +322,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm text-slate-500">오늘의 퀘스트</p>
-              <h2 className="section-title mt-1 text-2xl font-black text-ocean">캘린더에서 변환된 할 일</h2>
+              <h2 className="section-title mt-1 text-2xl font-black text-ocean">오늘 실행할 일일 퀘스트</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -218,7 +359,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
 
           {snapshot.onboardingState === "manual_only" ? (
             <div className="mt-5 rounded-[1.5rem] border border-ocean/10 bg-white/60 p-5 text-sm leading-6 text-slate-600">
-              오늘 일정은 비어 있지만 이번 주 미션은 있어요. 수동 퀘스트를 더하면 오늘 화면을 풍성하게 채울 수 있습니다.
+              오늘 일정은 비어 있지만 이번 주 미션은 있어요. 주간 미션은 오른쪽에 따로 두고, 여기에는 오늘 실행할 작은 작업만 표시합니다.
             </div>
           ) : null}
 
@@ -230,22 +371,23 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
             ) : null}
 
             {quests.map((quest) => (
-              <button
+              <article
                 key={quest.id}
-                type="button"
-                onClick={() => handleComplete(quest)}
                 className={cn(
                   "w-full rounded-[1.6rem] border p-5 text-left transition",
                   quest.completed
                     ? "border-transparent bg-gradient-to-r from-sage to-cream"
-                    : "border-ocean/10 bg-white hover:-translate-y-0.5 hover:shadow-lg"
+                    : "border-ocean/10 bg-white"
                 )}
               >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
+                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-ocean/5 px-3 py-1 text-xs font-semibold text-ocean">
                         {categoryLabel[quest.category]}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                        {sourceLabel[quest.source]}
                       </span>
                       <span className="text-xs text-slate-400">
                         {formatClock(quest.startTime)} - {formatClock(quest.endTime)}
@@ -254,21 +396,35 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
                     <h3 className="mt-3 text-lg font-bold text-slate-900">{quest.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-600">{quest.description}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">
-                      +{quest.xp} XP
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 md:w-32 md:flex-col md:items-stretch">
+                    <span className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-coral/10 px-3 py-2 text-xs font-black text-coral">
+                      보상 {quest.xp} XP
                     </span>
-                    <span
+                    {quest.source === "manual" && !quest.completed ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteManualQuest(quest)}
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+                      >
+                        삭제
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleComplete(quest)}
+                      disabled={quest.completed}
                       className={cn(
-                        "rounded-full px-3 py-2 text-sm font-semibold",
-                        quest.completed ? "bg-green-600 text-white" : "bg-slate-100 text-slate-500"
+                        "inline-flex items-center justify-center whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-black shadow-sm transition disabled:cursor-default",
+                        quest.completed
+                          ? "bg-green-600 text-white"
+                          : "bg-ocean text-white hover:-translate-y-0.5 hover:bg-ocean/90 hover:shadow-md"
                       )}
                     >
-                      {quest.completed ? "완료" : "탭해서 완료"}
-                    </span>
+                      {quest.completed ? "완료됨" : "완료하기"}
+                    </button>
                   </div>
                 </div>
-              </button>
+              </article>
             ))}
           </div>
         </div>
@@ -282,7 +438,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {snapshot.weeklyMission?.description ??
-              "주간 미션 이벤트를 캘린더 설명란에 적어두면 오늘 퀘스트로 자동 추출할 수 있습니다."}
+              "W1 미션이나 주간 미션 이벤트를 캘린더에 적어두면 여기에는 주간 방향으로만 표시합니다."}
           </p>
         </div>
 
@@ -325,13 +481,22 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
       {notice ? (
         <div
           className={cn(
-            "fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-full px-5 py-3 text-sm font-semibold shadow-lg",
+            "fixed bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold shadow-lg",
             notice.type === "success" && "bg-ocean text-white",
             notice.type === "error" && "bg-red-50 text-red-700",
             notice.type === "info" && "bg-slate-900 text-white"
           )}
         >
-          {notice.text}
+          <span>{notice.text}</span>
+          {undoState && notice.type === "success" ? (
+            <button
+              type="button"
+              onClick={handleUndoComplete}
+              className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white transition hover:bg-white/25"
+            >
+              실행 취소
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

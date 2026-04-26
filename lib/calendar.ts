@@ -20,6 +20,19 @@ interface GoogleCalendarResponse {
 
 type GoogleCalendarItem = NonNullable<GoogleCalendarResponse["items"]>[number];
 
+export function isWeeklyMissionEvent(event: Pick<CalendarEvent, "summary" | "description">) {
+  const title = event.summary.trim();
+  const source = `${title} ${event.description ?? ""}`.toLowerCase();
+
+  return (
+    /^w\d+\b/i.test(title) ||
+    title.includes("주간 미션") ||
+    title.includes("주간미션") ||
+    source.includes("weekly mission") ||
+    source.includes("#weekly")
+  );
+}
+
 function toCalendarEvent(item: GoogleCalendarItem): CalendarEvent | null {
   const start = item.start?.dateTime ?? item.start?.date;
   const end = item.end?.dateTime ?? item.end?.date;
@@ -72,7 +85,9 @@ export async function getTodayCalendarEvents(accessToken?: string, now = new Dat
   const end = new Date(start);
   end.setDate(start.getDate() + 1);
 
-  return fetchCalendarEvents(accessToken, start.toISOString(), end.toISOString());
+  const events = await fetchCalendarEvents(accessToken, start.toISOString(), end.toISOString());
+
+  return events.filter((event) => !isWeeklyMissionEvent(event));
 }
 
 export async function getCurrentWeekMission(
@@ -93,10 +108,7 @@ export async function getCurrentWeekMission(
   end.setDate(start.getDate() + 7);
 
   const events = await fetchCalendarEvents(accessToken, start.toISOString(), end.toISOString());
-  const missionEvent = events.find((event) => {
-    const source = `${event.summary} ${event.description ?? ""}`.toLowerCase();
-    return source.includes("미션") || /^w\d+/i.test(event.summary);
-  });
+  const missionEvent = events.find(isWeeklyMissionEvent);
 
   if (!missionEvent) {
     return null;

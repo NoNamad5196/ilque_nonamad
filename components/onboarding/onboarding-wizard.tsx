@@ -5,12 +5,18 @@ import { useState } from "react";
 
 import { readApiError } from "@/lib/api-response";
 import { createManualQuestPreview } from "@/lib/mock-data";
-import { type Quest } from "@/lib/types";
+import { type CalendarEvent, type Quest, type WeeklyMission } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Feedback = {
   type: "success" | "error";
   text: string;
+};
+
+type CalendarPreview = {
+  calendarConnected: boolean;
+  todayEvents: CalendarEvent[];
+  weeklyMission: WeeklyMission | null;
 };
 
 export function OnboardingWizard() {
@@ -23,6 +29,9 @@ export function OnboardingWizard() {
   const [manualQuests, setManualQuests] = useState<Quest[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingQuestId, setDeletingQuestId] = useState<string | null>(null);
+  const [calendarPreview, setCalendarPreview] = useState<CalendarPreview | null>(null);
+  const [isCheckingCalendar, setIsCheckingCalendar] = useState(false);
 
   async function addManualQuest() {
     const title = manualTitle.trim();
@@ -88,6 +97,79 @@ export function OnboardingWizard() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function deleteManualQuest(target: Quest) {
+    const previousQuests = manualQuests;
+
+    setDeletingQuestId(target.id);
+    setManualQuests((current) => current.filter((quest) => quest.id !== target.id));
+    setFeedback(null);
+
+    try {
+      const response = await fetch(`/api/quests/manual/${target.id}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        const { message } = await readApiError(response, "퀘스트를 삭제하지 못했습니다.");
+        setManualQuests(previousQuests);
+        setFeedback({
+          type: "error",
+          text: message
+        });
+        return;
+      }
+
+      setFeedback({
+        type: "success",
+        text: "수동 퀘스트를 삭제했어요."
+      });
+    } catch {
+      setManualQuests(previousQuests);
+      setFeedback({
+        type: "error",
+        text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+      });
+    } finally {
+      setDeletingQuestId(null);
+    }
+  }
+
+  async function checkCalendarConnection() {
+    setIsCheckingCalendar(true);
+    setFeedback(null);
+
+    try {
+      const response = await fetch("/api/calendar/preview");
+
+      if (!response.ok) {
+        const { message } = await readApiError(response, "캘린더 상태를 확인하지 못했습니다.");
+        setCalendarPreview(null);
+        setFeedback({
+          type: "error",
+          text: message
+        });
+        return;
+      }
+
+      const payload = (await response.json()) as CalendarPreview;
+      setCalendarPreview(payload);
+      setFeedback({
+        type: "success",
+        text: payload.calendarConnected
+          ? "캘린더 읽기 권한을 확인했어요."
+          : "캘린더 권한이 아직 확인되지 않았어요. 로그인을 다시 진행해보세요."
+      });
+    } catch {
+      setCalendarPreview(null);
+      setFeedback({
+        type: "error",
+        text: "서버와 통신하지 못했습니다. 잠시 후 다시 시도해주세요."
+      });
+    } finally {
+      setIsCheckingCalendar(false);
     }
   }
 
@@ -173,19 +255,79 @@ export function OnboardingWizard() {
                 </a>
               </article>
               <article className="rounded-[1.5rem] bg-white/85 p-5">
-                <h3 className="font-bold text-slate-900">B. 오늘은 수동 퀘스트만 만들기</h3>
+                <h3 className="font-bold text-slate-900">B. 캘린더 연동 확인하기</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  캘린더를 나중에 연결해도 괜찮아요. 일단 오늘 해야 할 것만 등록해서 바로 대시보드로 들어갈 수 있습니다.
+                  Google 로그인 권한으로 오늘 일정과 이번 주 미션을 읽을 수 있는지 바로 확인합니다.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setStep(3)}
+                  onClick={checkCalendarConnection}
+                  disabled={isCheckingCalendar}
                   className="mt-4 rounded-full border border-ocean/10 bg-white px-4 py-2 text-sm font-semibold text-ocean"
                 >
-                  수동 퀘스트로 진행
+                  {isCheckingCalendar ? "확인 중..." : "연동 확인"}
                 </button>
               </article>
             </div>
+
+            <div className="mt-6 rounded-[1.5rem] bg-cream p-5">
+              <h3 className="font-bold text-slate-900">캘린더에는 이렇게 넣으면 좋아요</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <CalendarExample title="오늘 공부 블록" body="SQL JOIN 복습 / 19:00-20:00 / 설명에 세부 할 일 입력" />
+                <CalendarExample title="주간 미션" body="제목에 W1 또는 주간 미션 포함 / 대시보드 오른쪽 주간 미션으로 따로 표시" />
+                <CalendarExample title="일정 없는 날" body="캘린더가 비어 있으면 수동 퀘스트나 Notion Sources를 사용" />
+              </div>
+            </div>
+
+            {calendarPreview ? (
+              <div className="mt-6 rounded-[1.5rem] bg-white/85 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-slate-900">연동 확인 결과</h3>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-bold",
+                      calendarPreview.calendarConnected
+                        ? "bg-sage text-green-800"
+                        : "bg-slate-100 text-slate-500"
+                    )}
+                  >
+                    {calendarPreview.calendarConnected ? "읽기 가능" : "연결 대기"}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[1.25rem] bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-500">
+                      오늘 일정 {calendarPreview.todayEvents.length}개
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      {calendarPreview.todayEvents.slice(0, 3).map((event) => (
+                        <p key={event.id}>{event.summary}</p>
+                      ))}
+                      {calendarPreview.todayEvents.length === 0 ? <p>오늘 읽을 일정이 아직 없습니다.</p> : null}
+                    </div>
+                  </div>
+                  <div className="rounded-[1.25rem] bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-500">이번 주 미션</p>
+                    <p className="mt-3 text-sm text-slate-600">
+                      {calendarPreview.weeklyMission?.title ?? "미션 이벤트를 아직 찾지 못했습니다."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {feedback ? (
+              <div
+                className={cn(
+                  "mt-4 rounded-[1.2rem] px-4 py-3 text-sm font-medium",
+                  feedback.type === "success"
+                    ? "bg-green-600 text-white"
+                    : "bg-red-50 text-red-700"
+                )}
+              >
+                {feedback.text}
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
@@ -246,9 +388,19 @@ export function OnboardingWizard() {
                       <p className="font-bold text-slate-900">{quest.title}</p>
                       <p className="mt-1 text-sm text-slate-500">{quest.description}</p>
                     </div>
-                    <span className="rounded-full bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">
-                      {quest.category}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="rounded-full bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">
+                        {quest.category}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => deleteManualQuest(quest)}
+                        disabled={deletingQuestId === quest.id}
+                        className="rounded-full bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                      >
+                        {deletingQuestId === quest.id ? "삭제 중..." : "삭제"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -301,5 +453,14 @@ function Field({
       <span className="mb-2 block text-sm font-semibold text-slate-600">{label}</span>
       {children}
     </label>
+  );
+}
+
+function CalendarExample({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-[1.25rem] bg-white/80 p-4">
+      <p className="font-bold text-slate-900">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+    </div>
   );
 }

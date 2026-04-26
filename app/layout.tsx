@@ -7,7 +7,11 @@ import { getServerAuthSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "ILQue",
-  description: "Google Calendar 기반 학습 퀘스트 플래너"
+  description: "Google Calendar 기반 학습 퀘스트 플래너",
+  icons: {
+    icon: "/ilque-icon.png",
+    apple: "/ilque-icon.png"
+  }
 };
 
 export default async function RootLayout({

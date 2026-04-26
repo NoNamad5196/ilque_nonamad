@@ -35,9 +35,9 @@ export function SiteShell({
             <div>
               <Link href="/" className="inline-flex items-center gap-3">
                 <img
-                  src="/ilque-icon.svg"
+                  src="/ilque-icon.png"
                   alt="ILQue 아이콘"
-                  className="h-11 w-11 rounded-2xl object-contain shadow-sm"
+                  className="h-11 w-11 rounded-2xl object-cover shadow-sm"
                 />
                 <span className="section-title text-2xl font-black tracking-[-0.08em] text-ocean">
                   ILQue

@@ -6,7 +6,7 @@ export function GoogleSignInButton({ authConfigured }: { authConfigured: boolean
   if (!authConfigured) {
     return (
       <span className="inline-flex items-center justify-center rounded-full border border-ocean/10 bg-white/80 px-6 py-3 text-sm font-semibold text-ocean">
-        Google OAuth 설정 필요
+        로그인 준비 중
       </span>
     );
   }

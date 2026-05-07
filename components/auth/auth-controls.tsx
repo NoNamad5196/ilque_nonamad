@@ -21,7 +21,7 @@ export function AuthControls({
           compact && "px-2 py-1 text-xs"
         )}
       >
-        Google OAuth 설정 필요
+        로그인 준비 중
       </span>
     );
   }

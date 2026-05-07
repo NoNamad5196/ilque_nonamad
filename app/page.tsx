@@ -19,6 +19,12 @@ const features = [
   }
 ];
 
+const previewQuests = [
+  { label: "09:00", title: "SQL 조인 복습", meta: "35분 · 40 XP" },
+  { label: "11:30", title: "오답 노트 정리", meta: "25분 · 25 XP" },
+  { label: "15:00", title: "모의 문제 20개", meta: "50분 · 60 XP" }
+];
+
 export default async function HomePage() {
   const session = await getServerAuthSession();
 
@@ -27,83 +33,68 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="noise-overlay min-h-screen px-4 py-6 md:px-8 md:py-8">
+    <div className="min-h-screen px-4 py-5 md:px-8 md:py-7">
       <div className="mx-auto max-w-6xl">
-        <header className="glass flex flex-col gap-4 rounded-[2rem] px-5 py-5 shadow-glow md:flex-row md:items-center md:justify-between md:px-6">
-          <div>
-            <p className="section-title text-2xl font-black tracking-[-0.08em] text-ocean">ILQue</p>
-            <p className="mt-1 text-sm text-slate-500">듀오링고 느낌의 자격증/공부 퀘스트 플래너</p>
+        <header className="flex items-center justify-between gap-4 border-b border-ocean/10 pb-4">
+          <div className="flex items-center gap-3">
+            <img src="/ilque-icon.png" alt="ILQue 아이콘" className="h-10 w-10 rounded-xl object-cover" />
+            <div>
+              <p className="text-2xl font-black text-ocean">ILQue</p>
+              <p className="text-sm text-slate-500">자격증 공부 퀘스트 플래너</p>
+            </div>
           </div>
           <GoogleSignInButton authConfigured={has.auth} />
         </header>
 
-        <section className="grid gap-6 py-8 lg:grid-cols-[1.2fr_0.8fr] lg:py-12">
-          <div className="rounded-[2.4rem] bg-ocean px-6 py-8 text-white shadow-glow md:px-8 md:py-10">
-            <p className="text-xs uppercase tracking-[0.28em] text-white/70">Google Calendar + AI + XP System</p>
-            <h1 className="section-title mt-4 max-w-3xl text-5xl font-black tracking-[-0.08em] md:text-7xl">
-              오늘 해야 할 공부를
-              <br />
-              퀘스트처럼 보이게.
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-white/78">
-              ILQue는 캘린더에 적어둔 학습 이벤트를 오늘의 퀘스트로 바꾸고, 완료 흐름을 XP와 스트릭으로
-              보여주는 학습 운영 대시보드입니다.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <GoogleSignInButton authConfigured={has.auth} />
-              <a
-                href="#preview"
-                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90"
-              >
-                화면 미리 보기
-              </a>
-            </div>
-          </div>
-
-          <div className="grid gap-4">
-            <div className="glass rounded-[2rem] p-6">
-              <p className="text-sm text-slate-500">멀티 유저 설계</p>
-              <h2 className="section-title mt-2 text-3xl font-black text-ocean">각자 캘린더, 각자 데이터</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                Google OAuth로 로그인한 뒤 본인 일정만 읽고, 완료 이력과 XP도 사용자별로 분리 저장하도록
-                구조를 잡았습니다.
+        <section className="py-8 md:py-10">
+          <div className="relative overflow-hidden rounded-3xl bg-ocean px-6 py-9 text-white shadow-sm md:px-9 md:py-11">
+            <img
+              src="/ilque-icon.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute right-6 top-6 h-28 w-28 rounded-3xl object-cover opacity-15"
+            />
+            <div className="relative max-w-3xl">
+              <p className="text-sm font-semibold text-white/70">Daily Quest Planner</p>
+              <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight md:text-6xl">
+                오늘 공부를 바로 실행 가능한 퀘스트로.
+              </h1>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-white/80">
+                캘린더에 흩어진 학습 일정을 오늘 끝낼 수 있는 단위로 정리하고, 완료 기록과 XP를 한 화면에서
+                이어갑니다.
               </p>
-            </div>
-            <div className="glass rounded-[2rem] p-6">
-              <p className="text-sm text-slate-500">현재 상태</p>
-              <div className="mt-4 grid gap-3">
-                <StatusCard label="OAuth" value={has.auth ? "연결 준비됨" : "환경 변수 필요"} />
-                <StatusCard label="Supabase" value={has.supabase ? "연결 준비됨" : "환경 변수 필요"} />
-                <StatusCard label="Google AI" value={has.ai ? "연결 준비됨" : "로컬 플랜 사용"} />
+              <div className="mt-8 flex flex-wrap gap-3">
+                <GoogleSignInButton authConfigured={has.auth} />
+                <a
+                  href="#preview"
+                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+                >
+                  화면 미리 보기
+                </a>
               </div>
+            </div>
+
+            <div className="relative mt-9 grid gap-3 md:grid-cols-3">
+              {previewQuests.map((quest) => (
+                <div key={quest.title} className="rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-sm font-semibold text-white/60">{quest.label}</p>
+                  <h2 className="mt-3 text-lg font-bold">{quest.title}</h2>
+                  <p className="mt-2 text-sm text-white/65">{quest.meta}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         <section id="preview" className="grid gap-4 md:grid-cols-3">
-          {features.map((feature, index) => (
-            <article
-              key={feature.title}
-              className={`glass rounded-[2rem] p-6 transition md:min-h-[220px] ${
-                index === 1 ? "md:-translate-y-3" : ""
-              }`}
-            >
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Feature {index + 1}</p>
-              <h3 className="section-title mt-3 text-2xl font-black text-ocean">{feature.title}</h3>
+          {features.map((feature) => (
+            <article key={feature.title} className="glass rounded-2xl p-6">
+              <h3 className="text-xl font-black text-ocean">{feature.title}</h3>
               <p className="mt-3 text-sm leading-6 text-slate-600">{feature.body}</p>
             </article>
           ))}
         </section>
       </div>
-    </div>
-  );
-}
-
-function StatusCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.4rem] bg-white/80 px-4 py-4">
-      <p className="text-xs uppercase tracking-[0.24em] text-slate-400">{label}</p>
-      <p className="mt-2 font-semibold text-slate-700">{value}</p>
     </div>
   );
 }

@@ -257,25 +257,30 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
+  const openQuests = quests.filter((quest) => !quest.completed);
+  const completedCount = quests.length - openQuests.length;
+  const nextQuest = openQuests[0];
+  const progressPercent = quests.length > 0 ? Math.round((completedCount / quests.length) * 100) : 0;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
       <section className="space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="glass rounded-[1.75rem] p-5">
+          <div className="glass rounded-2xl p-5">
             <p className="text-sm text-slate-500">연속 스트릭</p>
             <div className="mt-3 flex items-end gap-2">
               <span className="section-title text-4xl font-black text-ocean">{stats.streak}</span>
               <span className="pb-1 text-sm text-slate-500">days</span>
             </div>
           </div>
-          <div className="glass rounded-[1.75rem] p-5">
+          <div className="glass rounded-2xl p-5">
             <p className="text-sm text-slate-500">누적 XP</p>
             <div className="mt-3 flex items-end gap-2">
               <span className="section-title text-4xl font-black text-ocean">{stats.xp}</span>
               <span className="pb-1 text-sm text-slate-500">xp</span>
             </div>
           </div>
-          <div className="glass rounded-[1.75rem] p-5">
+          <div className="glass rounded-2xl p-5">
             <p className="text-sm text-slate-500">현재 레벨</p>
             <div className="mt-3 flex items-end gap-2">
               <span className="section-title text-4xl font-black text-ocean">Lv.{stats.level}</span>
@@ -289,7 +294,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
         </div>
 
-        <div className="glass rounded-[2rem] p-6">
+        <div className="glass rounded-2xl p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">이번 주 진행도</p>
@@ -318,7 +323,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
         </div>
 
-        <div className="glass rounded-[2rem] p-6">
+        <div className="glass rounded-2xl p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm text-slate-500">오늘의 퀘스트</p>
@@ -431,7 +436,7 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
       </section>
 
       <aside className="space-y-6">
-        <div className="glass rounded-[2rem] p-6">
+        <div className="glass rounded-2xl p-6">
           <p className="text-sm text-slate-500">이번 주 미션</p>
           <h2 className="section-title mt-1 text-2xl font-black text-ocean">
             {snapshot.weeklyMission?.title ?? "주간 미션을 준비 중이에요"}
@@ -442,33 +447,43 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           </p>
         </div>
 
-        <div className="glass rounded-[2rem] p-6">
-          <p className="text-sm text-slate-500">현재 연결 상태</p>
-          <div className="mt-4 grid gap-3">
-            <StatusRow
-              label="Google OAuth"
-              value={snapshot.config.authConfigured ? "준비됨" : "미설정"}
-              active={snapshot.config.authConfigured}
-            />
-            <StatusRow
-              label="Supabase"
-              value={snapshot.config.supabaseConfigured ? "준비됨" : "미설정"}
-              active={snapshot.config.supabaseConfigured}
-            />
-            <StatusRow
-              label="Google AI"
-              value={snapshot.config.aiConfigured ? "준비됨" : "로컬 플랜 사용"}
-              active={snapshot.config.aiConfigured}
-            />
-            <StatusRow
-              label="Calendar 연결"
-              value={snapshot.config.calendarConnected ? "읽기 가능" : "연결 대기"}
-              active={snapshot.config.calendarConnected}
-            />
+        <div className="glass rounded-2xl p-6">
+          <p className="text-sm text-slate-500">오늘 집중</p>
+          <h2 className="mt-1 text-2xl font-black text-ocean">
+            {openQuests.length > 0 ? `남은 퀘스트 ${openQuests.length}개` : "오늘치 완료"}
+          </h2>
+          <div className="mt-5">
+            <div className="flex items-center justify-between text-sm text-slate-500">
+              <span>{completedCount}/{quests.length || 0} 완료</span>
+              <span>{progressPercent}%</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-ocean/10">
+              <div
+                className="h-full rounded-full bg-coral"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           </div>
+
+          {nextQuest ? (
+            <div className="mt-5 rounded-2xl border border-ocean/10 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-400">다음 퀘스트</p>
+              <h3 className="mt-2 font-bold text-slate-900">{nextQuest.title}</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                {formatClock(nextQuest.startTime)} - {formatClock(nextQuest.endTime)} · {nextQuest.xp} XP
+              </p>
+            </div>
+          ) : (
+            <Link
+              href="/history"
+              className="mt-5 inline-flex rounded-full bg-ocean px-4 py-2 text-sm font-semibold text-white transition hover:bg-ocean/90"
+            >
+              완료 기록 보기
+            </Link>
+          )}
         </div>
 
-        <div className="glass rounded-[2rem] p-6">
+        <div className="glass rounded-2xl p-6">
           <p className="text-sm text-slate-500">오늘의 운영 메모</p>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
             <li>캘린더 이벤트가 있으면 그 일정이 오늘의 퀘스트 우선순위가 됩니다.</li>
@@ -499,30 +514,6 @@ export function DashboardClient({ snapshot }: { snapshot: DashboardSnapshot }) {
           ) : null}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function StatusRow({
-  label,
-  value,
-  active
-}: {
-  label: string;
-  value: string;
-  active: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-[1.25rem] bg-white/80 px-4 py-3">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span
-        className={cn(
-          "rounded-full px-3 py-1 text-xs font-semibold",
-          active ? "bg-sage text-green-800" : "bg-slate-100 text-slate-500"
-        )}
-      >
-        {value}
-      </span>
     </div>
   );
 }

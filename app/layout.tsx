@@ -9,8 +9,14 @@ export const metadata: Metadata = {
   title: "ILQue",
   description: "Google Calendar 기반 학습 퀘스트 플래너",
   icons: {
-    icon: "/ilque-icon.png",
-    apple: "/ilque-icon.png"
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/ilque-icon.png", type: "image/png", sizes: "1024x1024" }
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }
+    ]
   }
 };
 

@@ -19,8 +19,16 @@ export function getXpIntoCurrentLevel(xp: number) {
   return xp % 100;
 }
 
-export function formatClock(input: string) {
+export function formatClock(input?: string | null) {
+  if (!input) {
+    return "--:--";
+  }
+
   const date = new Date(input);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "--:--";
+  }
 
   return new Intl.DateTimeFormat("ko-KR", {
     hour: "2-digit",

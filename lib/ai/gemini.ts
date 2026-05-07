@@ -110,24 +110,23 @@ export async function generateQuestPlanWithAi(input: {
     "weeklyMission은 이번 주 방향을 알려주는 배경 정보입니다.",
     "todayEvents가 있으면 weeklyMission 자체를 별도 퀘스트로 만들지 마세요.",
     "todayEvents가 비어 있을 때만 weeklyMission 설명에서 오늘 실행할 작은 작업 1~3개를 뽑아주세요.",
+    "startTime과 endTime은 반드시 ISO 8601 날짜/시간 문자열로 반환해주세요.",
     `todayEvents: ${JSON.stringify(input.todayEvents)}`,
     `weeklyMission: ${JSON.stringify(input.weeklyMission)}`
   ].join("\n");
 
   try {
     const raw = await callGoogleAi(prompt);
-    const parsed = JSON.parse(stripJsonFence(raw)) as Quest[];
+    const parsed = JSON.parse(stripJsonFence(raw));
     const source = input.todayEvents.length > 0 ? "calendar" as const : "weekly-mission" as const;
-    const quests = parsed
-      .map((quest, index) => ({
-        ...quest,
-        id: `ai-quest-${index + 1}`,
-        completed: false,
-        source
-      }))
+    const rawQuests = Array.isArray(parsed) ? parsed : [];
+    const quests = rawQuests
+      .map((quest, index) => normalizeAiQuest(quest, input, source, index))
+      .filter(Boolean) as Quest[];
+    const filteredQuests = quests
       .filter((quest) => !isWeeklyMissionQuest(quest, input.weeklyMission));
 
-    return quests.length > 0 ? quests : createDailyQuests(input);
+    return filteredQuests.length > 0 ? filteredQuests : createDailyQuests(input);
   } catch {
     return createDailyQuests(input);
   }
@@ -269,6 +268,58 @@ function isWeeklyMissionQuest(quest: Pick<Quest, "title" | "description">, weekl
   );
 }
 
+function normalizeAiQuest(
+  quest: unknown,
+  input: {
+    todayEvents: CalendarEvent[];
+    weeklyMission: WeeklyMission | null;
+    now?: Date;
+  },
+  source: Extract<Quest["source"], "calendar" | "weekly-mission">,
+  index: number
+): Quest | null {
+  if (!quest || typeof quest !== "object") {
+    return null;
+  }
+
+  const candidate = quest as Partial<Quest>;
+  const fallbackEvent = input.todayEvents[index % input.todayEvents.length];
+  const title = readNonEmptyString(candidate.title) || fallbackEvent?.summary || readNonEmptyString(input.weeklyMission?.title);
+
+  if (!title) {
+    return null;
+  }
+
+  const description =
+    readNonEmptyString(candidate.description) ||
+    fallbackEvent?.description ||
+    (source === "calendar"
+      ? "캘린더 이벤트를 오늘의 학습 퀘스트로 변환했습니다."
+      : "이번 주 미션에서 오늘 실행할 작은 작업으로 추출했습니다.");
+  const category = normalizeCategory(candidate.category, `${title} ${description}`);
+  const fallbackStart = fallbackEvent
+    ? dateFromValue(fallbackEvent.start, createFallbackQuestStart(input.now, index))
+    : createFallbackQuestStart(input.now, index);
+  const fallbackEnd = fallbackEvent
+    ? dateFromValue(fallbackEvent.end, addMinutes(fallbackStart, 50))
+    : addMinutes(fallbackStart, 50);
+  const startTime = normalizeQuestDateTime(candidate.startTime, fallbackStart);
+  const endTime = normalizeQuestDateTime(candidate.endTime, fallbackEnd);
+  const xp = Number(candidate.xp);
+
+  return {
+    id: stableId("ai-quest", title, String(index + 1)),
+    title,
+    description,
+    category,
+    startTime,
+    endTime,
+    xp: Number.isFinite(xp) && xp > 0 ? xp : QUEST_XP[category],
+    completed: false,
+    source
+  };
+}
+
 function normalizeSourceQuest(
   quest: Partial<Quest>,
   sources: LearningSource[],
@@ -336,6 +387,53 @@ function normalizeCategory(category: unknown, fallbackText: string): QuestCatego
   return category === "sql" || category === "coding" || category === "study" || category === "review"
     ? category
     : guessCategoryFromText(fallbackText);
+}
+
+function readNonEmptyString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function normalizeQuestDateTime(value: unknown, fallback: Date) {
+  if (typeof value !== "string" || !value.trim()) {
+    return fallback.toISOString();
+  }
+
+  const directDate = new Date(value);
+
+  if (Number.isFinite(directDate.getTime())) {
+    return directDate.toISOString();
+  }
+
+  const timeMatch = value.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!timeMatch) {
+    return fallback.toISOString();
+  }
+
+  const date = new Date(fallback);
+  const hour = Math.min(23, Math.max(0, Number(timeMatch[1])));
+  const minute = Math.min(59, Math.max(0, Number(timeMatch[2])));
+  const second = Math.min(59, Math.max(0, Number(timeMatch[3] ?? 0)));
+  date.setHours(hour, minute, second, 0);
+
+  return date.toISOString();
+}
+
+function dateFromValue(value: string, fallback: Date) {
+  const date = new Date(value);
+
+  return Number.isFinite(date.getTime()) ? date : fallback;
+}
+
+function createFallbackQuestStart(now: Date | undefined, index: number) {
+  const start = new Date(now ?? new Date());
+  start.setHours(19 + index, 0, 0, 0);
+
+  return start;
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
 function parseSearchResults(text: string): Array<Omit<WebSourceResult, "id">> {

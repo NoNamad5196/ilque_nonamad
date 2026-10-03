@@ -1,5 +1,7 @@
 # ILQue — 설계 문서
 
+> **과거 설계 참고용 (V1).** 현재 구현과 제품 기준은 [V2 구조](docs/V2-ARCHITECTURE.md) 및 [README](README.md)를 따릅니다. 아래 Gemma/UUID/옛 화면 명세는 최신 Source of Truth가 아닙니다.
+
 > 듀오링고 스타일 자격증 플래너 — 이름: ILQue (일퀘)
 > Google Calendar 연동 + AI 퀘스트 생성 + XP·스트릭 시스템
 > **멀티유저 — 각자 Google Calendar 연동, 데이터 완전 분리**

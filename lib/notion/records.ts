@@ -360,11 +360,12 @@ export async function getNotionWorkspaceSummary(): Promise<NotionWorkspaceSummar
   }
 }
 
-export async function getNotionSources(limit = 8): Promise<LearningSource[]> {
+export async function getNotionSources(limit = 8, strict = false): Promise<LearningSource[]> {
   const schema = await getPreparedSchema();
   const notion = getNotionClient();
 
   if (!schema || !notion) {
+    if (strict) throw new Error("Notion 연결을 확인해 주세요.");
     return [];
   }
 
@@ -393,7 +394,8 @@ export async function getNotionSources(limit = 8): Promise<LearningSource[]> {
     return (response.results ?? [])
       .map((page: any) => mapNotionSource(page, schema))
       .filter(Boolean) as LearningSource[];
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }

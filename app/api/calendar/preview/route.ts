@@ -13,22 +13,25 @@ export async function GET() {
     return Response.json({
       calendarConnected: false,
       todayEvents: [],
-      weeklyMission: null
+      weeklyMission: null,
     });
   }
 
   try {
     const [todayEvents, weeklyMission] = await Promise.all([
       getTodayCalendarEvents(actor.accessToken),
-      getCurrentWeekMission(actor.accessToken)
+      getCurrentWeekMission(actor.accessToken),
     ]);
 
     return Response.json({
       calendarConnected: true,
       todayEvents,
-      weeklyMission
+      weeklyMission,
     });
   } catch {
-    return errorResponse("캘린더 연동 상태를 확인하지 못했습니다. 다시 로그인해보세요.", 500);
+    return errorResponse(
+      "캘린더 연동 상태를 확인하지 못했습니다. 다시 로그인해보세요.",
+      500,
+    );
   }
 }

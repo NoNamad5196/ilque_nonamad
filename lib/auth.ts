@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { headers, cookies } from "next/headers";
+import { getToken } from "next-auth/jwt";
 import { getServerSession, type NextAuthOptions, type User } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
@@ -10,13 +12,13 @@ const googleScopes = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.readonly"
+  "https://www.googleapis.com/auth/calendar.readonly",
 ];
 
 export const authOptions: NextAuthOptions = {
-  secret: env.nextAuthSecret || "ilque-dev-secret",
+  secret: env.nextAuthSecret || undefined,
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
   },
   providers: has.auth
     ? [
@@ -28,14 +30,14 @@ export const authOptions: NextAuthOptions = {
               prompt: "consent",
               access_type: "offline",
               response_type: "code",
-              scope: googleScopes.join(" ")
-            }
-          }
-        })
+              scope: googleScopes.join(" "),
+            },
+          },
+        }),
       ]
     : [],
   pages: {
-    signIn: "/"
+    signIn: "/",
   },
   callbacks: {
     async jwt({ token, account }) {
@@ -68,7 +70,6 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
-        session.accessToken = token.accessToken;
         session.error = token.error;
       }
 
@@ -77,8 +78,8 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user }) {
       await upsertUserProfile(user);
       return true;
-    }
-  }
+    },
+  },
 };
 
 async function refreshGoogleAccessToken(token: {
@@ -90,15 +91,16 @@ async function refreshGoogleAccessToken(token: {
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
         client_id: env.googleClientId,
         client_secret: env.googleClientSecret,
         grant_type: "refresh_token",
-        refresh_token: token.refreshToken ?? ""
-      })
+        refresh_token: token.refreshToken ?? "",
+      }),
     });
 
     const refreshedToken = (await response.json()) as {
@@ -114,39 +116,42 @@ async function refreshGoogleAccessToken(token: {
     return {
       ...token,
       accessToken: refreshedToken.access_token,
-      accessTokenExpires: Date.now() + (refreshedToken.expires_in ?? 3600) * 1000,
+      accessTokenExpires:
+        Date.now() + (refreshedToken.expires_in ?? 3600) * 1000,
       refreshToken: refreshedToken.refresh_token ?? token.refreshToken,
-      error: undefined
+      error: undefined,
     };
   } catch {
     return {
       ...token,
-      error: "RefreshAccessTokenError" as const
+      error: "RefreshAccessTokenError" as const,
     };
   }
 }
 
 async function upsertUserProfile(user: User) {
+  if (process.env.ILQUE_STORAGE === "file") return;
   const supabase = createServiceSupabaseClient();
 
   if (!supabase || !user.id) {
     return;
   }
 
-  await supabase.from("users").upsert(
+  const { error } = await supabase.from("users").upsert(
     {
       id: user.id,
       email: user.email,
       name: user.name,
       avatar_url: user.image,
-      xp: 0,
-      level: 1,
-      streak: 0
     },
     {
-      onConflict: "id"
-    }
+      onConflict: "id",
+    },
   );
+  if (error)
+    throw new Error(
+      "학습 프로필을 저장하지 못했습니다. 저장소 연결을 확인해 주세요.",
+    );
 }
 
 export async function getServerAuthSession() {
@@ -170,9 +175,24 @@ export async function getApiActor() {
     return null;
   }
 
+  const token = await getToken({
+    req: {
+      headers: Object.fromEntries(await headers()),
+      cookies: Object.fromEntries(
+        (await cookies()).getAll().map((c) => [c.name, c.value]),
+      ),
+    } as Parameters<typeof getToken>[0]["req"],
+    secret: env.nextAuthSecret,
+  });
+  const credentials =
+    token?.refreshToken &&
+    (!token.accessTokenExpires ||
+      Date.now() >= token.accessTokenExpires - 60000)
+      ? await refreshGoogleAccessToken(token)
+      : token;
   return {
     viewer: createViewer(session.user),
-    accessToken: session.accessToken
+    accessToken: credentials?.error ? undefined : credentials?.accessToken,
   };
 }
 
@@ -186,6 +206,6 @@ function createViewer(user: {
     id: user.id ?? "",
     name: user.name ?? "ILQue 사용자",
     email: user.email ?? "",
-    image: user.image
+    image: user.image,
   };
 }

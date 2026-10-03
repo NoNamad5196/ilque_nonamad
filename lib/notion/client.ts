@@ -11,6 +11,7 @@ export function getNotionClient() {
 
   notionClient ??= new Client({
     auth: env.notionToken,
+    timeoutMs: 15000,
     notionVersion: "2025-09-03"
   });
 

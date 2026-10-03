@@ -2,7 +2,6 @@ import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface Session {
-    accessToken?: string;
     error?: "RefreshAccessTokenError";
     user: DefaultSession["user"] & {
       id: string;

@@ -1,100 +1,135 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-
-import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { getServerAuthSession } from "@/lib/auth";
 import { has } from "@/lib/env";
-
-const features = [
-  {
-    title: "Calendar to Quest",
-    body: "Google Calendar 이벤트를 읽어 오늘의 학습 퀘스트로 변환합니다."
-  },
-  {
-    title: "XP + Streak",
-    body: "퀘스트를 끝낼 때마다 XP가 쌓이고, 연속 학습 흐름을 스트릭으로 보여줍니다."
-  },
-  {
-    title: "AI Goal Planner",
-    body: "목표 기간과 현재 수준을 넣으면 주차별 계획을 바로 설계합니다."
-  }
-];
-
-const previewQuests = [
-  { label: "09:00", title: "SQL 조인 복습", meta: "35분 · 40 XP" },
-  { label: "11:30", title: "오답 노트 정리", meta: "25분 · 25 XP" },
-  { label: "15:00", title: "모의 문제 20개", meta: "50분 · 60 XP" }
-];
-
-export default async function HomePage() {
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
+import { Icon } from "@/components/v2/icon";
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
   const session = await getServerAuthSession();
-
-  if (session?.user) {
-    redirect("/dashboard");
-  }
-
+  if (session?.user) redirect("/dashboard");
   return (
-    <div className="min-h-screen px-4 py-5 md:px-8 md:py-7">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex items-center justify-between gap-4 border-b border-ocean/10 pb-4">
-          <div className="flex items-center gap-3">
-            <img src="/ilque-icon.png" alt="ILQue 아이콘" className="h-10 w-10 rounded-xl object-cover" />
-            <div>
-              <p className="text-2xl font-black text-ocean">ILQue</p>
-              <p className="text-sm text-slate-500">자격증 공부 퀘스트 플래너</p>
-            </div>
-          </div>
+    <div className="v2-app v2-landing">
+      <header>
+        <Link className="v2-logo" href="/">
+          <span className="v2-logo-mark">
+            <Icon name="spark" size={27} />
+          </span>
+          <strong>
+            ILQue<span>나의 매일을 퀘스트로</span>
+          </strong>
+        </Link>
+        <Link className="v2-inline-link" href={"/demo" as never}>
+          먼저 둘러보기 →
+        </Link>
+      </header>
+      <main>
+        <div className="v2-landing-copy">
+          <span className="v2-landing-pill">
+            일정은 캘린더에, 오늘의 배움은 일퀘에.
+          </span>
+          <h1>
+            오늘,
+            <br />뭘 공부해야 하지?
+            <br />
+            <em>작은 퀘스트로 시작해요.</em>
+          </h1>
+          <p>
+            목표와 마감일, 오늘의 일정과 학습 자료를 모아
+            <br />
+            지금 할 수 있는 한 걸음을 정해드려요.
+          </p>
           <GoogleSignInButton authConfigured={has.auth} />
-        </header>
-
-        <section className="py-8 md:py-10">
-          <div className="relative overflow-hidden rounded-3xl bg-ocean px-6 py-9 text-white shadow-sm md:px-9 md:py-11">
-            <img
-              src="/ilque-icon.png"
-              alt=""
-              aria-hidden="true"
-              className="absolute right-6 top-6 h-28 w-28 rounded-3xl object-cover opacity-15"
-            />
-            <div className="relative max-w-3xl">
-              <p className="text-sm font-semibold text-white/70">Daily Quest Planner</p>
-              <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight md:text-6xl">
-                오늘 공부를 바로 실행 가능한 퀘스트로.
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-white/80">
-                캘린더에 흩어진 학습 일정을 오늘 끝낼 수 있는 단위로 정리하고, 완료 기록과 XP를 한 화면에서
-                이어갑니다.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <GoogleSignInButton authConfigured={has.auth} />
-                <a
-                  href="#preview"
-                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
-                >
-                  화면 미리 보기
-                </a>
-              </div>
+          <p className="v2-caption">
+            Google Calendar는 읽기 전용으로 연결해요.
+          </p>
+          {params.error && (
+            <div className="v2-alert" role="alert">
+              로그인을 완료하지 못했어요. Google 계정과 연결 설정을 확인한 뒤
+              다시 시도해 주세요.
             </div>
-
-            <div className="relative mt-9 grid gap-3 md:grid-cols-3">
-              {previewQuests.map((quest) => (
-                <div key={quest.title} className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                  <p className="text-sm font-semibold text-white/60">{quest.label}</p>
-                  <h2 className="mt-3 text-lg font-bold">{quest.title}</h2>
-                  <p className="mt-2 text-sm text-white/65">{quest.meta}</p>
-                </div>
-              ))}
+          )}
+          <div className="v2-landing-trust">
+            <span>
+              <Icon name="check" size={15} />
+              목표에 맞춘 계획
+            </span>
+            <span>
+              <Icon name="check" size={15} />
+              꾸준함을 만드는 경험치
+            </span>
+          </div>
+        </div>
+        <div className="v2-landing-preview">
+          <span className="v2-landing-preview-label">나의 오늘 · 미리보기</span>
+          <div className="v2-landing-preview-title">
+            <h2>오늘도 한 걸음 더.</h2>
+            <span>✦ 레벨 3</span>
+          </div>
+          <div className="v2-landing-mini-hero">
+            <Icon name="book" size={49} />
+            <h3>
+              큰 목표도
+              <br />
+              작게 나누면 할 수 있어요.
+            </h3>
+          </div>
+          <div className="v2-landing-mini-quest">
+            <span className="v2-complete" />
+            <div>
+              <span className="v2-tag sql">데이터 · SQL</span>
+              <h3>JOIN 개념 정리하고 예제 3개 풀기</h3>
+              <p>
+                30분 예상 <span>+10 경험치</span>
+              </p>
             </div>
           </div>
-        </section>
-
-        <section id="preview" className="grid gap-4 md:grid-cols-3">
-          {features.map((feature) => (
-            <article key={feature.title} className="glass rounded-2xl p-6">
-              <h3 className="text-xl font-black text-ocean">{feature.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{feature.body}</p>
-            </article>
-          ))}
-        </section>
-      </div>
+          <div className="v2-landing-mini-quest">
+            <span className="v2-complete" />
+            <div>
+              <span className="v2-tag review">복습</span>
+              <h3>어제 틀린 문제 다시 풀기</h3>
+              <p>
+                20분 예상 <span>+15 경험치</span>
+              </p>
+            </div>
+          </div>
+          <p className="v2-landing-preview-bottom">
+            오늘의 작은 완료가 내일의 실력이 됩니다.
+          </p>
+        </div>
+      </main>
+      <section className="v2-landing-steps">
+        {[
+          {
+            icon: "goal" as const,
+            title: "목표를 정하고",
+            body: "마감일과 학습할 범위를 알려주세요.",
+          },
+          {
+            icon: "spark" as const,
+            title: "오늘 할 일을 나누고",
+            body: "가능한 시간에 맞춰 퀘스트를 준비해요.",
+          },
+          {
+            icon: "flag" as const,
+            title: "나만의 성장을 쌓아요",
+            body: "완료 기록을 바탕으로 다음 계획이 달라져요.",
+          },
+        ].map((s, i) => (
+          <article key={s.title}>
+            <span>0{i + 1}</span>
+            <Icon name={s.icon} size={24} />
+            <h2>{s.title}</h2>
+            <p>{s.body}</p>
+          </article>
+        ))}
+      </section>
+      <footer>ILQue · 작지만 꾸준한 배움을 위해</footer>
     </div>
   );
 }

@@ -1,18 +1,18 @@
-import { errorResponse } from "@/lib/api-response";
-import { getUserStats } from "@/lib/app-data";
 import { getApiActor } from "@/lib/auth";
-
+import { readWorkspace } from "@/lib/v2/store";
+import { statsFor } from "@/lib/v2/scheduler";
 export async function GET() {
   const actor = await getApiActor();
-
-  if (!actor) {
-    return errorResponse("로그인이 필요합니다.", 401);
-  }
-
+  if (!actor)
+    return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   try {
-    const stats = await getUserStats(actor.viewer.id);
-    return Response.json({ stats });
+    return Response.json({
+      stats: statsFor(await readWorkspace(actor.viewer.id)),
+    });
   } catch {
-    return errorResponse("사용자 통계를 불러오지 못했습니다.", 500);
+    return Response.json(
+      { error: "학습 기록을 불러오지 못했어요." },
+      { status: 503 },
+    );
   }
 }

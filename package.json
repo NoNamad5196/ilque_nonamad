@@ -1,18 +1,21 @@
 {
   "name": "ilque",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:api": "node --import tsx --test tests/api.integration.ts",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "dependencies": {
     "@notionhq/client": "^5.20.0",
     "@supabase/supabase-js": "^2.0.0",
-    "next": "^14.2.0",
-    "next-auth": "^4.24.0",
+    "next": "^15.5.25",
+    "next-auth": "^4.24.15",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "zod": "^3.23.0"
@@ -22,8 +25,13 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0",
+    "postcss": "^8.5.28",
+    "prettier": "^3.9.6",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }
